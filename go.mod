@@ -14,8 +14,8 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
 	github.com/fatih/color v1.18.0
 	github.com/fiatjaf/go-lnurl v1.13.1
-	github.com/flokiorg/flnd v0.1.9-beta
-	github.com/flokiorg/go-flokicoin v0.25.10-beta
+	github.com/flokiorg/flnd v0.1.10-beta
+	github.com/flokiorg/go-flokicoin v0.25.11-alpha
 	github.com/git-chglog/git-chglog v0.15.4
 	github.com/golang/protobuf v1.5.4
 	github.com/gorilla/websocket v1.5.3

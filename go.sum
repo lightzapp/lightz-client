@@ -559,12 +559,12 @@ github.com/fergusstrange/embedded-postgres v1.25.0 h1:sa+k2Ycrtz40eCRPOzI7Ry7Ttk
 github.com/fergusstrange/embedded-postgres v1.25.0/go.mod h1:t/MLs0h9ukYM6FSt99R7InCHs1nW0ordoVCcnzmpTYw=
 github.com/fiatjaf/go-lnurl v1.13.1 h1:7AeseawVNsl7JkZgAkTLf1mxAPbQuNrCPn3v7Qod0VQ=
 github.com/fiatjaf/go-lnurl v1.13.1/go.mod h1:GaZb1TFGKiMlmG7yphWg6pifLL2vJaRiDHAn3ZV9L9s=
-github.com/flokiorg/flnd v0.1.9-beta h1:fEuIeXssrjxB7DSCMqtv8hmMi6NmyvOktJImZnMdocc=
-github.com/flokiorg/flnd v0.1.9-beta/go.mod h1:UDu0Rz/+og7ZxkAaKJ5VoM9chG/qR3DoNAwiqLZEVV4=
+github.com/flokiorg/flnd v0.1.10-beta h1:A14WBsoTpQy9aKf5SL0KhDu9OXIEW1bpjxmrGO88juw=
+github.com/flokiorg/flnd v0.1.10-beta/go.mod h1:UDu0Rz/+og7ZxkAaKJ5VoM9chG/qR3DoNAwiqLZEVV4=
 github.com/flokiorg/flokicoin-neutrino v0.16.4-beta h1:/brUIe8ULAeN7hE+NqCwSo/s3dpD5ttXh2RBvIuVfLM=
 github.com/flokiorg/flokicoin-neutrino v0.16.4-beta/go.mod h1:0hpgE2dNjuOV+p7BdcSOxY6++iUwc7YdZJ6MoqgRa4E=
-github.com/flokiorg/go-flokicoin v0.25.10-beta h1:BDSiqqY+oWCFxQUcDehOJvkEvy0aHBB5sJVsg2gLvMs=
-github.com/flokiorg/go-flokicoin v0.25.10-beta/go.mod h1:CbL1G6TRpMNzxg4HnWVObaz1+nyaZJ5kP8B5/L2U3nU=
+github.com/flokiorg/go-flokicoin v0.25.11-alpha h1:wGuEIE4mv2Vux5dXvKUO6F9xu37MOQ2hxSBG2d3OKLc=
+github.com/flokiorg/go-flokicoin v0.25.11-alpha/go.mod h1:CbL1G6TRpMNzxg4HnWVObaz1+nyaZJ5kP8B5/L2U3nU=
 github.com/flokiorg/go-socks v0.0.0-20170105172521-4720035b7bfd h1:+ronJTVUGaH8N/VRXwZLi5Sou7Ty41piC05oKHNehdc=
 github.com/flokiorg/go-socks v0.0.0-20170105172521-4720035b7bfd/go.mod h1:YSmQVJwQclEkeLWZjbFO3MFVAycIO/fTCTvDs1jRzaE=
 github.com/flokiorg/walletd v0.1.5-beta h1:piPRs0wUrLiUiUZCVcyHxY8ixVbUtBy3vGmMvvGr7Nk=
