@@ -1,0 +1,8 @@
+services:
+  lightz-client:
+    profiles: !override [ "none" ]
+
+  scripts:
+    depends_on: !override
+      lightz-backend:
+        condition: service_healthy

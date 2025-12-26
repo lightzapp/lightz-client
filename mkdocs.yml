@@ -1,0 +1,7 @@
+site_name: lightz-client documentation
+theme: readthedocs
+
+nav:
+  - Home: index.md
+  - gRPC: grpc.md
+  - Configuration: configuration.md

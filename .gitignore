@@ -1,0 +1,52 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.a
+*.dylib
+
+lightzd
+lightzcli
+!cmd/lightzd
+!cmd/lightzcli
+bin/
+internal/onchain/wallet/lib/
+lightz-client-*.tar.gz
+lightz-client-manifest-*.txt
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+vendor/
+
+# Config, database, log, certificate and macaroon files
+lightz.toml
+!internal/rpcserver/test/lightz.toml
+internal/rpcserver/test/wallet
+internal/rpcserver/test/liquid-wallet/
+internal/rpcserver/test/bitcoin-wallet/
+internal/rpcserver/test/autoswap.toml
+lightz.db
+lightz.log
+tls.key
+tls.cert
+*.macaroon
+regtest
+
+# Goland
+.idea/
+.run/
+
+test-data
+
+target/
+
+# Docs
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/

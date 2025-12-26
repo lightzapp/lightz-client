@@ -1,0 +1,69 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"os/signal"
+	"runtime"
+	"strings"
+	"syscall"
+
+	"github.com/lightzapp/lightz-client/internal/build"
+	"github.com/lightzapp/lightz-client/internal/config"
+	"github.com/lightzapp/lightz-client/internal/logger"
+	"github.com/lightzapp/lightz-client/internal/rpcserver"
+	"github.com/lightzapp/lightz-client/internal/utils"
+)
+
+// TODO: close dangling channels
+
+func main() {
+	defaultDataDir, err := utils.GetDefaultDataDir()
+
+	if err != nil {
+		fmt.Println("Could not get home directory: " + err.Error())
+		os.Exit(1)
+	}
+
+	cfg, err := config.LoadConfig(defaultDataDir)
+	if err != nil {
+		fmt.Println("Could not load config: " + err.Error())
+		os.Exit(1)
+	}
+
+	logger.Init(cfg.Log)
+	logger.Infof("Starting version %s compiled with %s", build.GetVersion(), runtime.Version())
+
+	formattedCfg, err := utils.FormatJson(cfg)
+	if err != nil {
+		logger.Fatal("Could not format config: " + err.Error())
+	}
+
+	logger.Info("Parsed config and CLI arguments: " + formattedCfg)
+
+	if strings.HasSuffix(defaultDataDir, "lightzd-lnd") {
+		logger.Warn("You still have data in the .lightzd-lnd folder - please rename to .lightzd")
+	}
+
+	rpc := rpcserver.NewRpcServer(cfg)
+	if err := rpc.Init(); err != nil {
+		logger.Fatalf("Could not initialize Server: %v", err)
+	}
+	errChannel := rpc.Start()
+
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP)
+	go func() {
+		<-sigc
+		logger.Info("Received shutdown signal, stopping server...")
+		if err := rpc.Stop(); err != nil {
+			logger.Fatal("Could not stop server: " + err.Error())
+		}
+	}()
+
+	err = <-errChannel
+
+	if err != nil {
+		logger.Fatal("Could not start gRPC server: " + err.Error())
+	}
+}

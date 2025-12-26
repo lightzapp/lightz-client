@@ -1,0 +1,180 @@
+package onchain
+
+import (
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/lightzapp/lightz-client/pkg/lightz"
+	"github.com/tyler-smith/go-bip39"
+)
+
+const DefaultTransactionsLimit = 30
+
+type Balance struct {
+	Total       uint64
+	Confirmed   uint64
+	Unconfirmed uint64
+}
+
+type TransactionOutput struct {
+	Address      string
+	Amount       uint64
+	IsOurAddress bool
+}
+
+type WalletTransaction struct {
+	Id              string
+	Timestamp       time.Time
+	Outputs         []TransactionOutput
+	BlockHeight     uint32
+	BalanceChange   int64
+	IsConsolidation bool
+}
+
+type WalletInfo struct {
+	Id       Id
+	Name     string
+	Currency lightz.Currency
+	Readonly bool
+	TenantId Id
+}
+
+type WalletSendArgs struct {
+	Address     string
+	Amount      uint64
+	SatPerVbyte float64
+	SendAll     bool
+}
+
+type Wallet interface {
+	NewAddress() (string, error)
+	SendToAddress(args WalletSendArgs) (string, error)
+	Ready() bool
+	GetBalance() (*Balance, error)
+	GetWalletInfo() WalletInfo
+	Disconnect() error
+	GetTransactions(limit, offset uint64) ([]*WalletTransaction, error)
+	BumpTransactionFee(txId string, satPerVbyte float64) (string, error)
+	GetSendFee(args WalletSendArgs) (send uint64, fee uint64, err error)
+	GetOutputs(address string) ([]*Output, error)
+	Sync() error
+	FullScan() error
+	ApplyTransaction(txHex string) error
+}
+
+func (info WalletInfo) InsufficientBalanceError(amount uint64) error {
+	return fmt.Errorf("wallet %s has insufficient balance for sending %d sats", info.Name, amount)
+}
+
+func (info WalletInfo) String() string {
+	return fmt.Sprintf("Wallet{Id: %d, Name: %s, Currency: %s}", info.Id, info.Name, info.Currency)
+}
+
+type WalletCredentials struct {
+	WalletInfo
+	Mnemonic       string
+	Subaccount     *uint64
+	Xpub           string
+	CoreDescriptor string
+	Salt           string
+	Legacy         bool
+}
+
+func (c *WalletCredentials) Encrypted() bool {
+	return c.Salt != ""
+}
+
+func (c *WalletCredentials) Decrypt(password string) (*WalletCredentials, error) {
+	if !c.Encrypted() {
+		return nil, errors.New("credentials are not encrypted")
+	}
+	decrypted := *c
+	var err error
+
+	if decrypted.Xpub != "" {
+		decrypted.Xpub, err = decrypt(decrypted.Xpub, password, decrypted.Salt)
+		if err != nil {
+			return nil, fmt.Errorf("could not decrypt xpub: %w", err)
+		}
+	}
+	if decrypted.CoreDescriptor != "" {
+		decrypted.CoreDescriptor, err = decrypt(decrypted.CoreDescriptor, password, decrypted.Salt)
+		if err != nil {
+			return nil, fmt.Errorf("could not decrypt core descriptor: %w", err)
+		}
+	}
+	if decrypted.Mnemonic != "" {
+		// due to an implementation issue,
+		// there can be cases for new wallets (core descriptor + mnemonic - xpub deprecated)
+		// that we only have partial encryption where the core descriptor is encrypted but the mnemonic is not
+		// which is why we first check if the mnemonic is actually not encrypted
+		_, err = bip39.NewSeedWithErrorChecking(decrypted.Mnemonic, "")
+		if err != nil {
+			decrypted.Mnemonic, err = decrypt(decrypted.Mnemonic, password, decrypted.Salt)
+			if err != nil {
+				return nil, fmt.Errorf("could not decrypt mnemonic: %w", err)
+			}
+		}
+	}
+	decrypted.Salt = ""
+	return &decrypted, err
+}
+
+func (c *WalletCredentials) Encrypt(password string) (*WalletCredentials, error) {
+	if c.Encrypted() {
+		return nil, errors.New("credentials are already encrypted")
+	}
+	var err error
+
+	encrypted := *c
+	encrypted.Salt, err = generateSalt()
+	if err != nil {
+		return nil, fmt.Errorf("could not generate new salt: %w", err)
+	}
+
+	if encrypted.Xpub != "" {
+		encrypted.Xpub, err = encrypt(encrypted.Xpub, password, encrypted.Salt)
+		if err != nil {
+			return nil, fmt.Errorf("could not encrypt xpub: %w", err)
+		}
+	}
+	if encrypted.CoreDescriptor != "" {
+		encrypted.CoreDescriptor, err = encrypt(encrypted.CoreDescriptor, password, encrypted.Salt)
+		if err != nil {
+			return nil, fmt.Errorf("could not encrypt core descriptor: %w", err)
+		}
+	}
+	if encrypted.Mnemonic != "" {
+		encrypted.Mnemonic, err = encrypt(encrypted.Mnemonic, password, encrypted.Salt)
+		if err != nil {
+			return nil, fmt.Errorf("could not encrypt mnemonic: %w", err)
+		}
+	}
+	return &encrypted, err
+}
+
+type WalletBackend interface {
+	NewWallet(credentials *WalletCredentials) (Wallet, error)
+	DeriveDefaultDescriptor(mnemonic string) (string, error)
+}
+
+func ValidateWalletCredentials(backend WalletBackend, credentials *WalletCredentials) error {
+	if credentials.Encrypted() {
+		return errors.New("credentials are encrypted")
+	}
+	if credentials.CoreDescriptor == "" && credentials.Mnemonic == "" {
+		if credentials.Xpub != "" {
+			return errors.New("xpub is deprecated, use core descriptor and / or mnemonic")
+		}
+		return errors.New("core descriptor or mnemonic is required")
+	}
+	if credentials.CoreDescriptor == "" {
+		descriptor, err := backend.DeriveDefaultDescriptor(credentials.Mnemonic)
+		if err != nil {
+			return err
+		}
+		credentials.CoreDescriptor = descriptor
+	}
+	return nil
+}

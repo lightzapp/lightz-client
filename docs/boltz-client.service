@@ -1,0 +1,23 @@
+# A sample systemd service file for Lightz Client
+
+[Unit]
+Description=Lightz-Client
+
+# Optionally require lightningd.service or lnd.service to be running first
+Requires=lightningd.service
+After=lightningd.service
+
+[Service]
+ExecStart=/home/bitcoin/lightzd-client/lightzd
+ExecStop=/home/bitcoin/lightzd-client/lightzcli stop
+
+# Replace these with the user:group that will run lightzd-client
+User=bitcoin
+Group=bitcoin
+
+# Try restarting lightzd-client if it stops due to a failure
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

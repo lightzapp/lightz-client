@@ -1,0 +1,8 @@
+*.so
+*.a
+vendor
+bin
+target
+regtest
+lightzd
+lightzcli

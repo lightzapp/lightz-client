@@ -1,0 +1,18 @@
+dir: ./internal/mocks/{{ .SrcPackageName }}
+filename: "{{ .InterfaceName }}_mock.go"
+template: testify
+template-data:
+  unroll-variadic: true
+packages:
+  github.com/lightzapp/lightz-client/internal/autoswap:
+    config:
+      dir: ./internal/autoswap
+    interfaces:
+      RpcProvider: {}
+  github.com/lightzapp/lightz-client/internal/lightning:
+    interfaces:
+      LightningNode: {}
+  github.com/lightzapp/lightz-client/internal/onchain:
+    interfaces:
+      ChainProvider: {}
+      Wallet: {}

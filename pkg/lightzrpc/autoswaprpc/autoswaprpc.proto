@@ -1,0 +1,175 @@
+syntax = "proto3";
+
+package autoswaprpc;
+option go_package = "github.com/lightzapp/lightz-client/pkg/lightzrpc/autoswaprpc";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/field_mask.proto";
+import "lightzrpc.proto";
+
+service AutoSwap {
+  /*
+  Returns a list of swaps which are currently recommended by autoswap. Also works when autoswap is not running.
+  */
+  rpc GetRecommendations (GetRecommendationsRequest) returns (GetRecommendationsResponse);
+
+  /*
+  Executes recommendations previously returned by `GetRecommendations`.
+  Intended to be used when autoswap is fully configured but not enabled to allow for manual approval.
+  */
+  rpc ExecuteRecommendations (ExecuteRecommendationsRequest) returns (ExecuteRecommendationsResponse);
+
+  /*
+  Returns the current budget of autoswap and some relevant stats.
+   */
+  rpc GetStatus (GetStatusRequest) returns (GetStatusResponse);
+
+  /*
+  Updates the lightning configuration entirely or partially. Autoswap will reload the configuration after this call.
+
+  */
+  rpc UpdateLightningConfig(UpdateLightningConfigRequest) returns (Config);
+
+  /*
+  Updates the chain configuration entirely or partially. Autoswap will reload the configuration after this call.
+  */
+  rpc UpdateChainConfig(UpdateChainConfigRequest) returns (Config);
+
+  /*
+  Returns the currently used configuration.
+  */
+  rpc GetConfig(GetConfigRequest) returns (Config);
+
+  /*
+  Reloads the configuration from disk.
+  */
+  rpc ReloadConfig(google.protobuf.Empty) returns (Config);
+}
+
+
+message GetRecommendationsRequest {}
+
+message LightningSwap {
+  uint64 amount = 1;
+  uint64 fee_estimate = 2;
+  lightzrpc.SwapType type = 3;
+  // Reasons for which the swap is not being executed
+  repeated string dismissed_reasons = 4;
+}
+
+message LightningThresholds {
+  optional uint64 inbound = 1;
+  optional uint64 outbound = 2;
+}
+
+message LightningRecommendation {
+  // Populated when a swap is recommended for the associated `channel`,
+  // otherwise, the current balances are below the configured thresholds
+  optional LightningSwap swap = 1;
+  lightzrpc.LightningChannel channel = 2;
+  // the thresholds for a swap to be recommended for the `channel`
+  LightningThresholds thresholds = 3;
+}
+
+message ChainSwap {
+  uint64 amount = 1;
+  uint64 fee_estimate = 2;
+  // Reasons for which the swap is not being executed
+  repeated string dismissed_reasons = 3;
+}
+
+message ChainRecommendation {
+  // Populated when a swap is recommended based on the configured `wallet_balance`
+  // of the configured `from_wallet` exceeds the currently configured `max_balance`
+  optional ChainSwap swap = 1;
+  lightzrpc.Balance wallet_balance = 2;
+  uint64 max_balance = 3;
+}
+
+message Budget {
+  uint64 total = 1;
+  uint64 remaining = 2;
+  int64 start_date = 3;
+  int64 end_date = 4;
+  optional lightzrpc.SwapStats stats = 5;
+}
+
+message GetRecommendationsResponse {
+  repeated LightningRecommendation lightning = 1;
+  repeated ChainRecommendation chain = 2;
+}
+
+message ExecuteRecommendationsRequest {
+  repeated LightningRecommendation lightning = 1;
+  repeated ChainRecommendation chain = 2;
+  // Forcefully execute all recommendations, even ones that have dismissal reasons.
+  optional bool force = 3;
+}
+message ExecuteRecommendationsResponse {}
+
+message GetStatusRequest {}
+
+message Status {
+  bool running = 1;
+  optional string error = 2;
+  optional Budget budget = 3;
+  string description = 4;
+}
+
+message GetStatusResponse {
+  optional Status lightning = 1;
+  optional Status chain = 2;
+}
+
+message GetConfigRequest {}
+
+message UpdateLightningConfigRequest {
+  optional LightningConfig config = 1;
+  google.protobuf.FieldMask field_mask = 2;
+  optional bool reset = 3;
+}
+
+message UpdateChainConfigRequest {
+  ChainConfig config = 1;
+  optional google.protobuf.FieldMask field_mask = 2;
+  optional bool reset = 3;
+}
+
+message Config {
+  repeated ChainConfig chain = 1;
+  repeated LightningConfig lightning = 2;
+}
+
+message ChainConfig {
+  bool enabled = 1;
+  string from_wallet = 2;
+  string to_wallet = 3;
+  string to_address = 4;
+  uint64 max_balance = 5;
+  uint64 reserve_balance = 10;
+  float max_fee_percent = 6;
+  uint64 budget = 7;
+  uint64 budget_interval = 8;
+  optional string tenant = 9;
+}
+
+message LightningConfig {
+    bool enabled = 1;
+    uint64 channel_poll_interval = 2;
+    string static_address = 3;
+    uint64 outbound_balance = 4;
+    uint64 inbound_balance = 5;
+    float outbound_balance_percent = 6;
+    float inbound_balance_percent = 7;
+    float max_fee_percent = 8;
+    bool accept_zero_conf = 9;
+    uint64 failure_backoff = 10;
+    uint64 budget = 11;
+    uint64 budget_interval = 12;
+    lightzrpc.Currency currency = 13;
+    string swap_type = 14;
+    bool per_channel = 15;
+    string wallet = 16;
+    uint64 max_swap_amount = 17;
+    optional string tenant = 18;
+}

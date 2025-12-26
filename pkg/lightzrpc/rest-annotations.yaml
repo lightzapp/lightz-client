@@ -1,0 +1,41 @@
+type: google.api.Service
+config_version: 3
+
+http:
+  rules:
+    - selector: lightzrpc.Lightz.GetInfo
+      get: "/v1/info"
+
+    - selector: lightzrpc.Lightz.GetPairs
+      get: "/v1/pairs"
+
+    - selector: lightzrpc.Lightz.GetServiceInfo
+      get: "/v1/serviceinfo"
+
+    - selector: lightzrpc.Lightz.ListSwaps
+      get: "/v1/listswaps"
+
+    - selector: lightzrpc.Lightz.GetSwapInfo
+      get: "/v1/swap/{id}"
+
+    - selector: lightzrpc.Lightz.GetSwapInfoStream
+      get: "/v1/swap/{id}/stream"
+
+    - selector: lightzrpc.Lightz.Deposit
+      post: "/v1/deposit"
+      body: "*"
+
+    - selector: lightzrpc.Lightz.CreateSwap
+      post: "/v1/createswap"
+      body: "*"
+
+    - selector: lightzrpc.Lightz.CreateChannel
+      post: "/v1/createchannel"
+      body: "*"
+
+    - selector: lightzrpc.Lightz.CreateReverseSwap
+      post: "/v1/createreverseswap"
+      body: "*"
+
+    - selector: lightzrpc.Lightz.GetWallets
+      get: "/v1/wallets"

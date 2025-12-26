@@ -1,0 +1,218 @@
+PKG := github.com/lightzapp/lightz-client
+VERSION := 2.10.2
+GDK_VERSION = 0.75.1
+GO_VERSION := 1.24.7-bookworm
+RUST_VERSION := 1.82.0
+
+PKG_LIGHTZD := $(PKG)/cmd/lightzd
+PKG_LIGHTZ_CLI := $(PKG)/cmd/lightzcli
+
+GO_BIN := ${GOPATH}/bin
+
+GOTEST := CGO_ENABLED=1 GO111MODULE=on go test -v -timeout 5m
+GOBUILD := CGO_ENABLED=1 GO111MODULE=on go build -v
+GORUN := CGO_ENABLED=1 GO111MODULE=on go run -v
+GOINSTALL := CGO_ENABLED=1 GO111MODULE=on go install -v
+
+COMMIT := $(shell git log --pretty=format:'%h' -n 1)
+LDFLAGS := -ldflags "-X $(PKG)/internal/build.Commit=$(COMMIT) -X $(PKG)/internal/build.Version=$(VERSION) -w -s"
+
+GREEN := "\\033[0;32m"
+NC := "\\033[0m"
+
+define print
+	echo $(GREEN)$1$(NC)
+endef
+
+default: build
+
+#
+# Dependencies
+#
+
+$(TOOLS_PATH):
+	eval export PATH="$PATH:$(go env GOPATH)/bin"
+
+release:
+	git commit -a -m "chore: bump version to v$(VERSION)"
+	git tag -s v$(VERSION) -m "v$(VERSION)"
+	make changelog
+	git commit -a -m "chore: update changelog"
+
+install-tools: $(TOOLS_PATH)
+	@$(call print, "Installing tools")
+	cat tools/tools.go | grep _ | awk -F'"' '{print $$2}' | xargs -tI % go install %
+
+proto: $(TOOLS_PATH)
+	@$(call print, "Generating protosbufs")
+	eval cd pkg/lightzrpc && ./gen_protos.sh
+
+cln-proto: $(TOOLS_PATH)
+	@$(call print, "Generating CLN protobufs")
+	eval cd internal/cln/protos && ./gen_protos.sh
+
+BINDGEN_GO_REPO := https://github.com/NordSecurity/uniffi-bindgen-go
+BINDGEN_GO_TAG := v0.4.0+v0.28.3
+
+bindgen-go:
+	which uniffi-bindgen-go || cargo install uniffi-bindgen-go --git $(BINDGEN_GO_REPO) --tag $(BINDGEN_GO_TAG)
+
+lwk-bindings: build-lwk bindgen-go
+	cd lwk/lwk_bindings && uniffi-bindgen-go --out-dir ../../internal/onchain/liquid-wallet/ --library ../target/release/liblwk.a
+
+bdk-bindings: build-bdk bindgen-go
+	cd $(BDK_BINDINGS_PATH) && uniffi-bindgen-go --out-dir ../internal/onchain/bitcoin-wallet/ --library ./target/release/libbdk.a
+
+
+#
+# Tests
+#
+
+unit:
+	@$(call print, "Running unit tests")
+	$(GOTEST) ./... -v -tags unit
+
+integration: start-regtest
+	@$(call print, "Running integration tests")
+	$(GOTEST) ./... -v
+
+setup-regtest:
+ifeq ("$(wildcard regtest/docker-compose.override.yml)","")
+	@$(call print, "Downloading regtest")
+	make submodules
+	cp regtest.override.yml regtest/docker-compose.override.yml
+	cd regtest && git apply ../regtest.patch
+endif
+
+clear-wallet-data:
+	rm -rf internal/onchain/liquid-wallet/test-data
+	rm -rf internal/rpcserver/test/liquid-wallet
+
+start-regtest: setup-regtest clear-wallet-data
+	@$(call print, "Starting regtest")
+	eval cd regtest && ./start.sh
+
+restart-regtest: setup-regtest clear-wallet-data
+	@$(call print, "Restarting regtest")
+	eval cd regtest && ./restart.sh
+
+#
+# Building
+#
+
+build-bolt12:
+	@$(call print, "Building bolt12")
+	cd internal/lightning/lib/bolt12 && cargo build --release
+
+build-lwk:
+	@$(call print, "Building lwk")
+	cd lwk/lwk_bindings && cargo build --release --lib
+	cp lwk/target/release/liblwk.a lwk/target/release/liblwk.so internal/onchain/liquid-wallet/lwk/
+
+BDK_BINDINGS_PATH := ./bdk
+
+build-bdk:
+	@$(call print, "Building bdk")
+	cd $(BDK_BINDINGS_PATH) && cargo build --release --lib
+	cp $(BDK_BINDINGS_PATH)/target/release/libbdk.a $(BDK_BINDINGS_PATH)/target/release/libbdk.so internal/onchain/bitcoin-wallet/bdk/
+
+build: download-gdk build-bolt12 build-lwk build-bdk
+	@$(call print, "Building lightz-client")
+	$(GOBUILD) $(ARGS) -o lightzd $(LDFLAGS) $(PKG_LIGHTZD)
+	$(GOBUILD) $(ARGS) -o lightzcli $(LDFLAGS) $(PKG_LIGHTZ_CLI)
+
+build-examples:
+	@$(call print, "Building examples")
+	cd examples && $(GOBUILD) $(ARGS) -o bin/submarine $(LDFLAGS) ./submarine
+	cd examples && $(GOBUILD) $(ARGS) -o bin/reverse $(LDFLAGS) ./reverse
+
+static: download-gdk build-bolt12 build-lwk build-bdk
+	@$(call print, "Building static lightz-client")
+	$(GOBUILD) -tags static -o lightzd $(LDFLAGS) $(PKG_LIGHTZD)
+	$(GOBUILD) -tags static -o lightzcli $(LDFLAGS) $(PKG_LIGHTZ_CLI)
+
+
+daemon:
+	@$(call print, "running lightzd")
+	$(GORUN) $(LDFLAGS) $(PKG_LIGHTZD)
+
+cli:
+	@$(call print, "running lightzcli")
+	$(GORUN) $(LDFLAGS) $(PKG_LIGHTZ_CLI)
+
+install: 
+	@$(call print, "Installing lightz-client")
+	$(GOINSTALL) $(LDFLAGS) $(PKG_LIGHTZD)
+	$(GOINSTALL) $(LDFLAGS) $(PKG_LIGHTZ_CLI)
+
+deps: submodules
+	go mod vendor
+	cp -r ./go-secp256k1-zkp/secp256k1-zkp ./vendor/github.com/vulpemventures/go-secp256k1-zkp
+	# exclude the package and any lines including a # (#cgo, #include, etc.)
+	cd ./vendor/github.com/vulpemventures/go-secp256k1-zkp && \
+		sed -i '/#\|package/!s/secp256k1/go_secp256k1/g' *.go && \
+		find secp256k1-zkp -type f -name "*.c" -print0 | xargs -0 sed -i '/include/!s/secp256k1/go_secp256k1/g' && \
+		find secp256k1-zkp -type f -name "*.h" -print0 | xargs -0 sed -i '/include/!s/secp256k1/go_secp256k1/g'
+
+download-gdk:
+ifeq ("$(wildcard internal/onchain/wallet/lib/libgreen_gdk.so)","")
+	@$(call print, "Downloading gdk library")
+	@container_id=$$(docker create "lightz/gdk-ubuntu:$(GDK_VERSION)" true); \
+	docker cp "$$container_id:/" internal/onchain/wallet/lib/ && \
+	docker rm "$$container_id";
+endif
+
+
+#
+# Utils
+#
+
+submodules:
+	@$(call print, "Updating submodules")
+	git submodule update --init --recursive
+
+mockery:
+	@$(call print, "Generating mocks")
+	mockery
+
+fmt:
+	@$(call print, "Formatting source")
+	gofmt -l -s -w .
+
+lint:
+	@$(call print, "Linting source")
+	golangci-lint run -v
+
+changelog:
+	@$(call print, "Updating changelog")
+	git-chglog --output CHANGELOG.md
+
+PLATFORMS := linux/amd64,linux/arm64
+DOCKER_CACHE := lightz/lightz-client:buildcache
+DOCKER_ARGS := --platform $(PLATFORMS) --build-arg GO_VERSION=$(GO_VERSION) --build-arg GDK_VERSION=$(GDK_VERSION) --build-arg RUST_VERSION=$(RUST_VERSION)
+DOCKER_CACHE_ARGS := --cache-from type=registry,ref=$(DOCKER_CACHE) --cache-to type=registry,ref=$(DOCKER_CACHE),mode=max
+
+docker:
+	@$(call print, "Building docker image")
+	docker buildx build --push -t lightz/lightz-client:$(VERSION) -t lightz/lightz-client:latest $(DOCKER_ARGS) $(DOCKER_CACHE_ARGS) .
+
+binaries:
+	@$(call print, "Building binaries")
+	docker buildx build --output bin --target binaries $(DOCKER_ARGS) $(DOCKER_CACHE_ARGS) .
+	tar -czvf lightz-client-linux-amd64-v$(VERSION).tar.gz bin/linux_amd64
+	tar -czvf lightz-client-linux-arm64-v$(VERSION).tar.gz bin/linux_arm64
+	sha256sum lightz-client-*.tar.gz bin/**/* > lightz-client-manifest-v$(VERSION).txt
+
+gdk-source: submodules
+	cd gdk && git checkout release_$(GDK_VERSION)
+	cp ./gdk/include/gdk.h ./internal/onchain/wallet/include/gdk.h
+
+GDK_AMD64_BUILDER := blockstream/gdk-ubuntu-builder@sha256:0faa0e15127f3a2a025c2c7e92764c617c24417c40a91f950e777fb99620aa9a
+GDK_ARM64_BUILDER := blockstream/gdk-ubuntu-builder@sha256:66a546eff8c28be6af96a26791bf34306710be30c20ff1d7447d66521a5defcd
+
+build-gdk:
+	docker buildx build --push -t lightz/gdk-ubuntu:latest -t lightz/gdk-ubuntu:$(GDK_VERSION) -f gdk.Dockerfile $(DOCKER_ARGS) \
+		--build-arg GDK_AMD64_BUILDER=$(GDK_AMD64_BUILDER) \
+		--build-arg GDK_ARM64_BUILDER=$(GDK_ARM64_BUILDER) .
+
+.PHONY: build binaries

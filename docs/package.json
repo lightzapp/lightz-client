@@ -1,0 +1,20 @@
+{
+  "name": "docs",
+  "version": "1.0.0",
+  "description": "--- cover: .gitbook/assets/lightzd-client (1).png coverY: 0 ---",
+  "main": "index.js",
+  "scripts": {
+    "prettier": "prettier *.md *.json",
+    "prettier:write": "npm run prettier -- --write",
+    "prettier:check": "npm run prettier -- --check",
+    "docs:dev": "vitepress dev",
+    "docs:build": "vitepress build",
+    "docs:preview": "vitepress preview"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "prettier": "^3.6.2",
+    "vitepress": "^1.6.3"
+  }
+}
